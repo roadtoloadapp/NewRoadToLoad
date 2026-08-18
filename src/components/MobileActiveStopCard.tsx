@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   Check, 
@@ -9,10 +9,13 @@ import {
   ListOrdered,
   Sparkles,
   MapPin,
-  Footprints
+  Footprints,
+  ExternalLink,
+  X
 } from 'lucide-react';
 import { TourStop, Language, Bar } from '../types';
 import { TRANSLATIONS } from '../data/translations';
+import { getGoogleMapsWalkingUrl, getAppleMapsWalkingUrl, isAppleDevice } from '../utils/mapLinks';
 
 interface MobileActiveStopCardProps {
   tourStops: TourStop[];
@@ -86,9 +89,11 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
   const bar = currentStop.bar;
   const isDone = currentStop.completed;
   const priceStr = '€'.repeat(bar.priceLevel);
-  const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-    `${bar.name}, ${bar.street}, Budapest`
-  )}`;
+  const isApple = isAppleDevice();
+  const googleMapsUrl = getGoogleMapsWalkingUrl(bar.name, bar.street, bar.coords);
+  const appleMapsUrl = getAppleMapsWalkingUrl(bar.name, bar.street, bar.coords);
+
+  const [showNavOptions, setShowNavOptions] = useState(false);
 
   const handlePrev = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -117,6 +122,51 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
 
   return (
     <div className="md:hidden absolute bottom-[4.5rem] left-3 right-3 z-30 bg-[#0F0F0F]/95 backdrop-blur-xl border border-white/15 rounded-2xl p-3.5 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+      {/* Navigation App Chooser Popover */}
+      {showNavOptions && (
+        <div className="absolute -top-32 left-0 right-0 bg-[#161616] border border-[#FDD835]/40 rounded-2xl p-3 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-black uppercase tracking-wider text-[#FDD835] flex items-center gap-1.5">
+              <Navigation className="w-3.5 h-3.5" />
+              {lang === 'hu' ? 'Navigáció indítása' : 'Start Navigation'}
+            </span>
+            <button
+              onClick={() => setShowNavOptions(false)}
+              className="p-1 text-white/50 hover:text-white rounded-lg"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <a
+              href={googleMapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setShowNavOptions(false)}
+              className="flex flex-col items-center justify-center py-2.5 px-2 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] font-black text-xs rounded-xl shadow-md transition-transform active:scale-95 text-center"
+            >
+              <span className="flex items-center gap-1">
+                🗺️ Google Maps
+              </span>
+              <span className="text-[10px] text-[#111111]/70 font-semibold">{lang === 'hu' ? 'Gyalogos útiterv' : 'Walking route'}</span>
+            </a>
+
+            <a
+              href={appleMapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setShowNavOptions(false)}
+              className="flex flex-col items-center justify-center py-2.5 px-2 bg-white/10 hover:bg-white/20 text-white font-black text-xs rounded-xl border border-white/15 transition-transform active:scale-95 text-center"
+            >
+              <span className="flex items-center gap-1">
+                🍏 Apple Térkép
+              </span>
+              <span className="text-[10px] text-white/60 font-semibold">{lang === 'hu' ? 'iOS Térképek' : 'Apple Maps iOS'}</span>
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Top Controls & Stop Indicator */}
       <div className="flex items-center justify-between gap-2 mb-2 pb-2 border-b border-white/5">
         <div className="flex items-center gap-2 min-w-0">
@@ -134,12 +184,25 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
           </span>
         </div>
 
-        {/* Step Prev/Next Buttons */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Step Prev/Next & Quick Re-generate Buttons */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onQuickGenerate();
+            }}
+            className="flex items-center gap-1 px-2.5 py-1 bg-[#FDD835]/15 hover:bg-[#FDD835]/25 text-[#FDD835] border border-[#FDD835]/30 rounded-lg text-[10px] font-black uppercase tracking-wider active:scale-95 cursor-pointer min-h-[34px]"
+            title={lang === 'hu' ? 'Új túra generálása azonnal' : 'Generate new tour instantly'}
+          >
+            <Sparkles className="w-3 h-3 fill-[#FDD835]" />
+            <span>{lang === 'hu' ? 'Új túra' : 'New'}</span>
+          </button>
+
           <button
             type="button"
             onClick={handlePrev}
-            className="p-2 text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg active:scale-95 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center"
+            className="p-1.5 text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg active:scale-95 cursor-pointer min-w-[34px] min-h-[34px] flex items-center justify-center border border-white/5"
             title={t.prevStop}
             aria-label="Previous stop"
           >
@@ -148,7 +211,7 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
           <button
             type="button"
             onClick={handleNext}
-            className="p-2 text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg active:scale-95 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center"
+            className="p-1.5 text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg active:scale-95 cursor-pointer min-w-[34px] min-h-[34px] flex items-center justify-center border border-white/5"
             title={t.nextStop}
             aria-label="Next stop"
           >
@@ -223,17 +286,19 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
           )}
         </button>
 
-        {/* Google Maps Nav */}
-        <a
-          href={googleMapsUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="py-2.5 px-3 bg-white/10 hover:bg-white/15 text-white border border-white/10 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 min-h-[44px]"
+        {/* Navigation App Trigger (Opens Google Maps / Apple Maps chooser) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowNavOptions(!showNavOptions);
+          }}
+          className="py-2.5 px-3 bg-white/10 hover:bg-white/15 text-white border border-white/10 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 min-h-[44px] cursor-pointer"
           title={t.openInMaps}
         >
           <Navigation className="w-3.5 h-3.5 text-[#FDD835]" />
           <span>{t.openInMaps}</span>
-        </a>
+        </button>
 
         {/* View Full Itinerary */}
         <button

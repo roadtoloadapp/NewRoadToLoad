@@ -64,8 +64,8 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Main Navigation (Always visible on tablets & desktops, and quick-access on small screens) */}
-      <nav className="flex items-center gap-3 sm:gap-6 md:gap-8 text-[#111111] font-black text-xs sm:text-sm uppercase tracking-widest">
+      {/* Main Navigation (Visible on tablets & desktops) */}
+      <nav className="hidden md:flex items-center gap-6 lg:gap-8 text-[#111111] font-black text-xs sm:text-sm uppercase tracking-widest">
         {/* Rólunk / About */}
         <button
           type="button"
@@ -73,7 +73,7 @@ export const Header: React.FC<HeaderProps> = ({
             onOpenAbout();
             setMobileMenuOpen(false);
           }}
-          className="hover:opacity-70 transition-opacity cursor-pointer py-1 px-1 font-black"
+          className="hover:opacity-70 transition-opacity cursor-pointer py-1 font-black"
         >
           {t.navAbout}
         </button>
@@ -85,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
             onOpenContact();
             setMobileMenuOpen(false);
           }}
-          className="hover:opacity-70 transition-opacity cursor-pointer py-1 px-1 font-black"
+          className="hover:opacity-70 transition-opacity cursor-pointer py-1 font-black"
         >
           {t.navContact}
         </button>
@@ -94,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           type="button"
           onClick={onOpenCatalog}
-          className="hidden md:flex items-center gap-1.5 hover:opacity-70 transition-opacity cursor-pointer py-1 px-1 font-black"
+          className="flex items-center gap-1.5 hover:opacity-70 transition-opacity cursor-pointer py-1 font-black"
         >
           <Compass className="w-3.5 h-3.5" />
           <span>{t.navCatalog}</span>
@@ -103,50 +103,54 @@ export const Header: React.FC<HeaderProps> = ({
         <button
           type="button"
           onClick={onOpenRoulette}
-          className="hidden lg:flex items-center gap-1.5 hover:opacity-70 transition-opacity cursor-pointer py-1 px-1 font-black"
+          className="hidden lg:flex items-center gap-1.5 hover:opacity-70 transition-opacity cursor-pointer py-1 font-black"
         >
           <Dices className="w-3.5 h-3.5" />
           <span>{t.navRoulette}</span>
         </button>
+      </nav>
 
-        <div className="h-4 w-[1px] bg-[#111111]/30 hidden sm:block" />
-
-        {/* Language Switch Pill */}
-        <div className="flex items-center bg-[#111111]/10 rounded-lg p-0.5 border border-[#111111]/15">
+      {/* Action Area: High-Visibility Language Switcher & Quick Generate Buttons */}
+      <div className="flex items-center gap-1.5 sm:gap-2.5">
+        {/* Dedicated High-Contrast Language Switcher (Always visible on mobile & desktop) */}
+        <div 
+          className="flex items-center bg-[#111111] p-1 rounded-xl shadow-md border border-[#111111]/30 shrink-0 select-none"
+          role="group" 
+          aria-label="Language selection"
+        >
           <button
             type="button"
             onClick={() => onLanguageChange('hu')}
-            className={`px-2 py-1 rounded text-xs font-black transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-black tracking-wider transition-all cursor-pointer min-h-[30px] min-w-[34px] flex items-center justify-center ${
               lang === 'hu'
-                ? 'bg-[#111111] text-[#FDD835] shadow-sm'
-                : 'text-[#111111]/60 hover:text-[#111111]'
+                ? 'bg-[#FDD835] text-[#111111] shadow-sm font-black'
+                : 'text-white/80 hover:text-white font-bold'
             }`}
             title="Magyar nyelv"
+            aria-pressed={lang === 'hu'}
           >
             HU
           </button>
           <button
             type="button"
             onClick={() => onLanguageChange('en')}
-            className={`px-2 py-1 rounded text-xs font-black transition-all cursor-pointer ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-black tracking-wider transition-all cursor-pointer min-h-[30px] min-w-[34px] flex items-center justify-center ${
               lang === 'en'
-                ? 'bg-[#111111] text-[#FDD835] shadow-sm'
-                : 'text-[#111111]/60 hover:text-[#111111]'
+                ? 'bg-[#FDD835] text-[#111111] shadow-sm font-black'
+                : 'text-white/80 hover:text-white font-bold'
             }`}
             title="English language"
+            aria-pressed={lang === 'en'}
           >
             EN
           </button>
         </div>
-      </nav>
 
-      {/* Action Buttons */}
-      <div className="flex items-center gap-2">
-        {/* Custom Tour Planner Trigger */}
+        {/* Custom Tour Planner Trigger (Desktop) */}
         <button
           type="button"
           onClick={onOpenPlanner}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#111111]/10 hover:bg-[#111111]/20 text-[#111111] border border-[#111111]/20 rounded-lg text-xs font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer"
+          className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-[#111111]/10 hover:bg-[#111111]/20 text-[#111111] border border-[#111111]/25 rounded-xl text-xs font-black uppercase tracking-wider transition-all active:scale-95 cursor-pointer min-h-[38px]"
         >
           <Sliders className="w-3.5 h-3.5" />
           <span>{t.btnCustomGen}</span>
@@ -158,21 +162,22 @@ export const Header: React.FC<HeaderProps> = ({
           onClick={() => {
             onQuickGenerate();
           }}
-          className="flex items-center gap-1.5 px-3.5 py-2 bg-[#111111] hover:bg-[#222222] text-[#FDD835] font-black rounded-lg text-xs uppercase tracking-widest transition-transform hover:scale-105 active:scale-95 shadow-md cursor-pointer"
+          className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-[#111111] hover:bg-[#222222] text-[#FDD835] font-black rounded-xl text-xs uppercase tracking-widest transition-transform hover:scale-105 active:scale-95 shadow-md cursor-pointer min-h-[38px] whitespace-nowrap"
           title={t.btnGen}
         >
-          <Sparkles className="w-3.5 h-3.5 text-[#FDD835]" />
-          <span>{t.btnGen}</span>
+          <Sparkles className="w-3.5 h-3.5 text-[#FDD835] fill-[#FDD835]" />
+          <span className="hidden sm:inline">{t.btnGen}</span>
+          <span className="inline sm:hidden text-[11px] font-black">{lang === 'hu' ? 'Új túra' : 'New Tour'}</span>
         </button>
 
         {/* Mobile Extra Menu Hamburger */}
         <button
           type="button"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 text-[#111111] hover:bg-[#111111]/10 rounded-lg cursor-pointer"
+          className="md:hidden p-2 text-[#111111] hover:bg-[#111111]/15 rounded-xl cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
           aria-label="Toggle Navigation"
         >
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          {mobileMenuOpen ? <X className="w-5 h-5 stroke-[2.5]" /> : <Menu className="w-5 h-5 stroke-[2.5]" />}
         </button>
       </div>
 

@@ -21,9 +21,14 @@ import { TourStop, Language, Bar } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { 
   calculateTourStats, 
-  formatTourShareText, 
-  generateGoogleMapsRouteUrl 
+  formatTourShareText 
 } from '../utils/geo';
+import { 
+  getGoogleMapsWalkingUrl, 
+  getAppleMapsWalkingUrl, 
+  getMultiStopGoogleMapsUrl, 
+  getMultiStopAppleMapsUrl 
+} from '../utils/mapLinks';
 
 interface TourSheetProps {
   tourStops: TourStop[];
@@ -217,9 +222,8 @@ export const TourSheet: React.FC<TourSheetProps> = ({
                 const isSelected = selectedBarId === stop.bar.id;
                 const isExpanded = expandedStopId === stop.id;
                 const priceStr = '€'.repeat(stop.bar.priceLevel);
-                const googleSingleUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-                  `${stop.bar.name}, ${stop.bar.street}, Budapest`
-                )}`;
+                const googleSingleUrl = getGoogleMapsWalkingUrl(stop.bar.name, stop.bar.street, stop.bar.coords);
+                const appleSingleUrl = getAppleMapsWalkingUrl(stop.bar.name, stop.bar.street, stop.bar.coords);
 
                 return (
                   <div
@@ -315,7 +319,7 @@ export const TourSheet: React.FC<TourSheetProps> = ({
                       </div>
                     </div>
 
-                    {/* Expand Details & Navigation Link */}
+                    {/* Expand Details & Navigation Links */}
                     <div className="mt-2.5 flex items-center justify-between pt-1.5 border-t border-white/5">
                       <button
                         onClick={() => setExpandedStopId(isExpanded ? null : stop.id)}
@@ -325,15 +329,29 @@ export const TourSheet: React.FC<TourSheetProps> = ({
                         {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                       </button>
 
-                      <a
-                        href={googleSingleUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[11px] uppercase tracking-wider font-black text-[#FDD835] hover:opacity-80 flex items-center gap-1 py-1"
-                      >
-                        <span>Maps</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={googleSingleUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] uppercase tracking-wider font-bold text-[#FDD835] hover:opacity-80 flex items-center gap-0.5 py-1"
+                          title="Google Maps"
+                        >
+                          <span>Google</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                        <span className="text-white/20 text-xs">•</span>
+                        <a
+                          href={appleSingleUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] uppercase tracking-wider font-bold text-white/70 hover:text-white flex items-center gap-0.5 py-1"
+                          title="Apple Maps (iOS)"
+                        >
+                          <span>Apple</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      </div>
                     </div>
 
                     {isExpanded && (
@@ -375,25 +393,36 @@ export const TourSheet: React.FC<TourSheetProps> = ({
                 <span>{copiedNotification ? t.copied : t.shareBtn}</span>
               </button>
 
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <a
-                  href={generateGoogleMapsRouteUrl(tourStops)}
+                  href={getMultiStopGoogleMapsUrl(tourStops)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-2.5 px-3 bg-white/5 hover:bg-white/10 text-white/80 border border-white/10 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors text-center min-h-[42px]"
+                  className="py-2.5 px-2.5 bg-white/5 hover:bg-white/10 text-white/90 border border-white/10 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors text-center min-h-[42px]"
+                  title="Google Maps"
                 >
                   <span>🗺️ Google Maps</span>
                 </a>
 
-                <button
-                  onClick={handleWhatsAppShare}
-                  className="py-2.5 px-3 bg-white/5 hover:bg-emerald-950/60 text-emerald-400 border border-emerald-500/20 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer min-h-[42px]"
-                  title="WhatsApp"
+                <a
+                  href={getMultiStopAppleMapsUrl(tourStops)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="py-2.5 px-2.5 bg-white/5 hover:bg-white/10 text-white/90 border border-white/10 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors text-center min-h-[42px]"
+                  title="Apple Maps (iOS)"
                 >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>WhatsApp</span>
-                </button>
+                  <span>🍏 Apple (iOS)</span>
+                </a>
               </div>
+
+              <button
+                onClick={handleWhatsAppShare}
+                className="w-full py-2.5 px-3 bg-white/5 hover:bg-emerald-950/60 text-emerald-400 border border-emerald-500/20 rounded-xl text-[11px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer min-h-[40px]"
+                title="WhatsApp"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>{t.shareWhatsApp}</span>
+              </button>
             </div>
           </>
         )}

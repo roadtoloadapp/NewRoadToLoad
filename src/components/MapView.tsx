@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { calculateTourStats } from '../utils/geo';
 import { fetchStreetWalkingRoute } from '../utils/navigationRoute';
+import { getGoogleMapsWalkingUrl, getAppleMapsWalkingUrl } from '../utils/mapLinks';
 
 interface MapViewProps {
   allBars: Bar[];
@@ -203,10 +204,11 @@ export const MapView: React.FC<MapViewProps> = ({
       });
 
       const priceStr = '€'.repeat(bar.priceLevel);
-      const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${bar.name}, ${bar.street}, Budapest`)}`;
+      const googleMapsUrl = getGoogleMapsWalkingUrl(bar.name, bar.street, bar.coords);
+      const appleMapsUrl = getAppleMapsWalkingUrl(bar.name, bar.street, bar.coords);
 
       const popupContent = `
-        <div class="p-1 max-w-[240px]">
+        <div class="p-1 max-w-[250px]">
           <div class="flex items-center justify-between gap-2 mb-1.5">
             <span class="text-[9px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded bg-[#FDD835] text-[#111111]">
               #${index + 1} • ${t.stopLabel}
@@ -215,14 +217,20 @@ export const MapView: React.FC<MapViewProps> = ({
           </div>
           <h4 class="font-black text-sm text-[#FDD835] tracking-tight mb-0.5">${bar.name}</h4>
           <p class="text-[11px] text-white/50 mb-2">${bar.street}</p>
-          <div class="bg-black/60 p-2 rounded border-l-2 border-[#FDD835] mb-2 text-xs">
+          <div class="bg-black/60 p-2 rounded border-l-2 border-[#FDD835] mb-2.5 text-xs">
             <div class="text-[9px] font-black uppercase tracking-wider text-[#FDD835] mb-0.5">🎯 ${t.challengeTitle}</div>
             <div class="text-[#EEEEEE] italic text-[11px]">"${lang === 'hu' ? stop.challengeHu : stop.challengeEn}"</div>
           </div>
-          <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" 
-             class="flex items-center justify-center gap-1 w-full py-1.5 px-2 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] text-xs font-black uppercase tracking-wider rounded transition-transform active:scale-95 text-center">
-            <span>${t.walkingRoute}</span> ↗
-          </a>
+          <div class="grid grid-cols-2 gap-1.5">
+            <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" 
+               class="flex items-center justify-center gap-1 py-1.5 px-2 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] text-[11px] font-black uppercase tracking-wider rounded transition-transform active:scale-95 text-center shadow-sm">
+              <span>Google</span> ↗
+            </a>
+            <a href="${appleMapsUrl}" target="_blank" rel="noopener noreferrer" 
+               class="flex items-center justify-center gap-1 py-1.5 px-2 bg-white/15 hover:bg-white/25 text-white text-[11px] font-black uppercase tracking-wider rounded transition-transform active:scale-95 text-center border border-white/15">
+              <span>Apple (iOS)</span> ↗
+            </a>
+          </div>
         </div>
       `;
 
@@ -256,10 +264,11 @@ export const MapView: React.FC<MapViewProps> = ({
         });
 
         const priceStr = '€'.repeat(bar.priceLevel);
-        const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${bar.name}, ${bar.street}, Budapest`)}`;
+        const googleMapsUrl = getGoogleMapsWalkingUrl(bar.name, bar.street, bar.coords);
+        const appleMapsUrl = getAppleMapsWalkingUrl(bar.name, bar.street, bar.coords);
 
         const popupContent = `
-          <div class="p-1 max-w-[220px]">
+          <div class="p-1 max-w-[230px]">
             <div class="flex items-center justify-between gap-2 mb-1">
               <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/10 text-white/70">
                 ${bar.district}
@@ -268,13 +277,19 @@ export const MapView: React.FC<MapViewProps> = ({
             </div>
             <h4 class="font-black text-sm text-[#FDD835] tracking-tight mb-0.5">${bar.name}</h4>
             <p class="text-[11px] text-white/50 mb-2">${bar.street}</p>
-            <p class="text-xs text-white/70 line-clamp-2 mb-2 leading-relaxed text-[11px]">
+            <p class="text-xs text-white/70 line-clamp-2 mb-2.5 leading-relaxed text-[11px]">
               ${lang === 'hu' ? bar.descriptionHu : bar.descriptionEn}
             </p>
-            <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" 
-               class="block text-center py-1 px-2 bg-white/5 hover:bg-white/10 text-white text-[11px] font-bold uppercase tracking-wider rounded transition-colors border border-white/5">
-              Google Maps ↗
-            </a>
+            <div class="grid grid-cols-2 gap-1.5">
+              <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" 
+                 class="block text-center py-1.5 px-2 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] text-[10px] font-black uppercase tracking-wider rounded transition-transform active:scale-95">
+                Google ↗
+              </a>
+              <a href="${appleMapsUrl}" target="_blank" rel="noopener noreferrer" 
+                 class="block text-center py-1.5 px-2 bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold uppercase tracking-wider rounded transition-colors border border-white/10">
+                Apple ↗
+              </a>
+            </div>
           </div>
         `;
 
@@ -343,6 +358,18 @@ export const MapView: React.FC<MapViewProps> = ({
 
       {/* Floating Map Action Controls */}
       <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-[400] flex flex-col gap-1.5 sm:gap-2">
+        {onQuickGenerate && (
+          <button
+            onClick={onQuickGenerate}
+            className="flex items-center justify-center sm:justify-start gap-2 px-3 py-2.5 sm:px-3.5 sm:py-2 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] font-black border border-[#FDD835] rounded-xl shadow-2xl text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer min-h-[42px] min-w-[42px]"
+            title={tourStops.length > 0 ? (lang === 'hu' ? 'Új túra generálása' : 'Generate new tour') : (lang === 'hu' ? 'Túra generálás' : 'Generate tour')}
+            aria-label="Generate new tour"
+          >
+            <Sparkles className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#111111] fill-[#111111]" />
+            <span className="hidden sm:inline">{tourStops.length > 0 ? (lang === 'hu' ? 'Új túra' : 'New Tour') : (lang === 'hu' ? 'Túra generálás' : 'Generate')}</span>
+          </button>
+        )}
+
         <button
           onClick={onLocateUser}
           className="flex items-center justify-center sm:justify-start gap-2 px-3 py-2.5 sm:px-3.5 sm:py-2 bg-[#1A1A1A]/90 hover:bg-[#222222] text-[#EEEEEE] hover:text-[#FDD835] border border-white/10 rounded-xl shadow-2xl backdrop-blur-md text-xs font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer min-h-[42px] min-w-[42px]"
