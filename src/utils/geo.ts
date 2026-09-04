@@ -92,8 +92,14 @@ export function generateTourRoute(
     selectedBars.push(pool.splice(pickIndex, 1)[0]);
   }
 
+  // 2-opt route optimization: eliminates self-intersecting (criss-crossing) paths
+  const optimizedBars = optimizeRouteOrder2Opt(
+    selectedBars, 
+    Boolean(options.startFromLocation && options.userCoords)
+  );
+
   // Build TourStop objects with random challenges
-  return selectedBars.map((bar, index) => {
+  return optimizedBars.map((bar, index) => {
     const challenge = getRandomChallenge(lang);
     return {
       id: `stop-${bar.id}-${index}-${Date.now()}`,
@@ -103,6 +109,82 @@ export function generateTourRoute(
       completed: false,
     };
   });
+}
+
+/**
+ * 2-opt Traveling Salesperson heuristic:
+ * Eliminates zig-zag / crossing segments so the tour flows naturally and sequentially.
+ * If keepFirstFixed is true (e.g. user started from their location), index 0 stays unchanged.
+ */
+export function optimizeRouteOrder2Opt(bars: Bar[], keepFirstFixed = false): Bar[] {
+  if (bars.length <= 2) return bars;
+
+  let best = [...bars];
+  let improved = true;
+  let iterations = 0;
+
+  const getPathDist = (arr: Bar[]) => {
+    let d = 0;
+    for (let i = 0; i < arr.length - 1; i++) {
+      d += getDistanceKm(arr[i].coords, arr[i + 1].coords);
+    }
+    return d;
+  };
+
+  let bestDist = getPathDist(best);
+  const startIndex = keepFirstFixed ? 1 : 0;
+
+  while (improved && iterations < 40) {
+    improved = false;
+    iterations++;
+
+    for (let i = startIndex; i < best.length - 1; i++) {
+      for (let k = i + 1; k < best.length; k++) {
+        // 2-opt swap: reverse segment between i and k
+        const candidate = [
+          ...best.slice(0, i),
+          ...best.slice(i, k + 1).reverse(),
+          ...best.slice(k + 1),
+        ];
+
+        const candidateDist = getPathDist(candidate);
+        if (candidateDist < bestDist - 0.0005) {
+          best = candidate;
+          bestDist = candidateDist;
+          improved = true;
+          break;
+        }
+      }
+      if (improved) break;
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Inserts a new stop at the optimal topological position that minimizes added walking distance,
+ * ensuring no zig-zag criss-crosses are introduced when adding stops to a tour.
+ */
+export function insertStopOptimally(stops: TourStop[], newStop: TourStop): TourStop[] {
+  if (stops.length <= 1) return [...stops, newStop];
+
+  let bestIndex = stops.length;
+  let minDistance = Infinity;
+
+  for (let i = 0; i <= stops.length; i++) {
+    const candidate = [...stops.slice(0, i), newStop, ...stops.slice(i)];
+    let dist = 0;
+    for (let k = 0; k < candidate.length - 1; k++) {
+      dist += getDistanceKm(candidate[k].bar.coords, candidate[k + 1].bar.coords);
+    }
+    if (dist < minDistance) {
+      minDistance = dist;
+      bestIndex = i;
+    }
+  }
+
+  return [...stops.slice(0, bestIndex), newStop, ...stops.slice(bestIndex)];
 }
 
 // Generate multi-stop Google Maps URL

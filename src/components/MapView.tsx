@@ -7,7 +7,6 @@ import {
   Maximize2, 
   Navigation, 
   ExternalLink,
-  Sparkles,
   Footprints,
   Route
 } from 'lucide-react';
@@ -25,6 +24,75 @@ interface MapViewProps {
   onAddBarToTour?: (bar: Bar) => void;
   onLocateUser: () => void;
   onQuickGenerate?: () => void;
+  isObscured?: boolean;
+}
+
+// Generate pixel-perfect vector pin with mathematically centered numbers
+function getTourStopMarkerSvg(
+  num: number,
+  isDone: boolean,
+  isSelected: boolean
+): string {
+  const width = isSelected ? 42 : 36;
+  const height = isSelected ? 52 : 44;
+  const fill = isDone ? '#10B981' : '#FDD835';
+  const stroke = isSelected ? '#FFFFFF' : '#000000';
+  const strokeWidth = isSelected ? 2.5 : 1.5;
+  const textFill = isDone ? '#10B981' : '#FDD835';
+  const fontSize = isDone ? 15 : (num >= 10 ? 11.5 : 13.5);
+
+  return `
+    <div class="pro-marker-root ${isSelected ? 'marker-selected-pulse' : ''}" style="width: ${width}px; height: ${height}px;">
+      <svg width="${width}" height="${height}" viewBox="0 0 36 46" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.7));">
+        <!-- Pin Teardrop Body pointing directly to tip [18, 45] -->
+        <path 
+          d="M18 45 C18 45 3.5 28.5 3.5 17.5 C3.5 9.49 9.99 3 18 3 C26.01 3 32.5 9.49 32.5 17.5 C32.5 28.5 18 45 18 45 Z" 
+          fill="${fill}" 
+          stroke="${stroke}" 
+          stroke-width="${strokeWidth}"
+          stroke-linejoin="round"
+        />
+        
+        <!-- High-contrast dark inner circle badge -->
+        <circle 
+          cx="18" 
+          cy="17.5" 
+          r="10.5" 
+          fill="#111111" 
+          stroke="${fill}" 
+          stroke-width="1.5" 
+        />
+        
+        <!-- Mathematically centered number or checkmark -->
+        <text 
+          x="18" 
+          y="18" 
+          text-anchor="middle" 
+          dominant-baseline="central" 
+          fill="${textFill}" 
+          font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" 
+          font-weight="900" 
+          font-size="${fontSize}"
+          letter-spacing="-0.5px"
+          style="pointer-events: none; user-select: none;"
+        >
+          ${isDone ? '✓' : num}
+        </text>
+      </svg>
+    </div>
+  `;
+}
+
+// Generate sleek discovery pin for Budapest bars in catalog
+function getCatalogMarkerSvg(isSelected: boolean): string {
+  const size = isSelected ? 26 : 22;
+  return `
+    <div class="pro-catalog-marker ${isSelected ? 'selected' : ''}" style="width: ${size}px; height: ${size}px;">
+      <div class="w-full h-full rounded-full bg-[#161616] border ${isSelected ? 'border-[#FDD835] shadow-[0_0_12px_#FDD835]' : 'border-white/20'} flex items-center justify-center transition-all shadow-md">
+        <span style="font-size: ${isSelected ? '12px' : '10px'}; line-height: 1;">🍺</span>
+      </div>
+    </div>
+  `;
 }
 
 export const MapView: React.FC<MapViewProps> = ({
@@ -37,6 +105,7 @@ export const MapView: React.FC<MapViewProps> = ({
   onAddBarToTour,
   onLocateUser,
   onQuickGenerate,
+  isObscured = false,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -163,23 +232,35 @@ export const MapView: React.FC<MapViewProps> = ({
         ? streetRouteCoords 
         : tourStops.map((s) => s.bar.coords);
       
-      // Layer 1: Dark casing border for clean contrast on dark maps
+      // Layer 1: Dark casing outline for crisp contrast against dark map tiles
       L.polyline(polylinePoints, {
-        color: '#050505',
-        weight: 7,
-        opacity: 0.9,
+        color: '#000000',
+        weight: 8,
+        opacity: 0.85,
         lineCap: 'round',
         lineJoin: 'round',
+        className: 'navigation-walking-halo',
       }).addTo(layerGroup);
 
-      // Layer 2: Clean solid gold navigation line (Google Maps / Apple Maps walking navigation style)
+      // Layer 2: Radiant solid gold walking track
       L.polyline(polylinePoints, {
         color: '#FDD835',
-        weight: 4.5,
-        opacity: 1,
+        weight: 5,
+        opacity: 0.95,
         lineCap: 'round',
         lineJoin: 'round',
         className: 'navigation-walking-path',
+      }).addTo(layerGroup);
+
+      // Layer 3: Walking step beads (Apple & Google Maps walking directions aesthetic)
+      L.polyline(polylinePoints, {
+        color: '#111111',
+        weight: 2.2,
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round',
+        dashArray: '2, 9',
+        className: 'navigation-walking-steps',
       }).addTo(layerGroup);
     }
 
@@ -189,18 +270,18 @@ export const MapView: React.FC<MapViewProps> = ({
       activeCoords.push(bar.coords);
 
       const isDone = stop.completed;
-      const markerHtml = `
-        <div class="marker-pin ${isDone ? 'completed' : ''}" style="${selectedBarId === bar.id ? 'transform: rotate(-45deg) scale(1.25); z-index: 100;' : ''}">
-          <div class="marker-content">${isDone ? '✓' : index + 1}</div>
-        </div>
-      `;
+      const isSelected = selectedBarId === bar.id;
+      const sizeW = isSelected ? 42 : 36;
+      const sizeH = isSelected ? 52 : 44;
+
+      const markerHtml = getTourStopMarkerSvg(index + 1, isDone, isSelected);
 
       const icon = L.divIcon({
         className: 'custom-map-marker',
         html: markerHtml,
-        iconSize: [32, 32],
-        iconAnchor: [16, 32],
-        popupAnchor: [0, -30],
+        iconSize: [sizeW, sizeH],
+        iconAnchor: [sizeW / 2, sizeH - 1],
+        popupAnchor: [0, -sizeH + 4],
       });
 
       const priceStr = '€'.repeat(bar.priceLevel);
@@ -251,16 +332,15 @@ export const MapView: React.FC<MapViewProps> = ({
     allBars
       .filter((b) => !tourBarIds.has(b.id))
       .forEach((bar) => {
+        const isSelected = selectedBarId === bar.id;
+        const size = isSelected ? 26 : 22;
+
         const icon = L.divIcon({
           className: 'custom-map-marker',
-          html: `
-            <div class="marker-pin inactive" style="width: 22px; height: 22px; margin: -11px 0 0 -11px; ${selectedBarId === bar.id ? 'transform: rotate(-45deg) scale(1.3); background: #FDD835;' : ''}">
-              <div class="marker-content" style="font-size: 9px;">🍺</div>
-            </div>
-          `,
-          iconSize: [22, 22],
-          iconAnchor: [11, 22],
-          popupAnchor: [0, -20],
+          html: getCatalogMarkerSvg(isSelected),
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2],
+          popupAnchor: [0, -size / 2 - 4],
         });
 
         const priceStr = '€'.repeat(bar.priceLevel);
@@ -344,7 +424,9 @@ export const MapView: React.FC<MapViewProps> = ({
 
       {/* Walking GPS Navigation Status Tag */}
       {tourStops.length > 1 && (
-        <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[400] bg-[#1A1A1A]/90 backdrop-blur-md border border-[#FDD835]/30 px-3 py-1.5 rounded-xl shadow-xl flex items-center gap-2 pointer-events-none">
+        <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 z-[400] bg-[#1A1A1A]/90 backdrop-blur-md border border-[#FDD835]/30 px-3 py-1.5 rounded-xl shadow-xl flex items-center gap-2 pointer-events-none transition-all duration-200 ${
+          isObscured ? 'opacity-0 -translate-y-2 pointer-events-none invisible' : 'opacity-100 translate-y-0 visible'
+        }`}>
           <span className="relative flex h-2 w-2">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FDD835] opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-[#FDD835]"></span>
@@ -357,7 +439,9 @@ export const MapView: React.FC<MapViewProps> = ({
       )}
 
       {/* Floating Map Action Controls */}
-      <div className="absolute top-3 left-3 sm:top-4 sm:left-4 z-[400] flex flex-col gap-1.5 sm:gap-2">
+      <div className={`absolute top-3 left-3 sm:top-4 sm:left-4 z-[400] flex flex-col gap-1.5 sm:gap-2 transition-all duration-200 ${
+        isObscured ? 'opacity-0 -translate-y-2 pointer-events-none invisible' : 'opacity-100 translate-y-0 visible'
+      }`}>
         {onQuickGenerate && (
           <button
             onClick={onQuickGenerate}
@@ -365,7 +449,7 @@ export const MapView: React.FC<MapViewProps> = ({
             title={tourStops.length > 0 ? (lang === 'hu' ? 'Új túra generálása' : 'Generate new tour') : (lang === 'hu' ? 'Túra generálás' : 'Generate tour')}
             aria-label="Generate new tour"
           >
-            <Sparkles className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#111111] fill-[#111111]" />
+            <Route className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#111111] stroke-[2.5]" />
             <span className="hidden sm:inline">{tourStops.length > 0 ? (lang === 'hu' ? 'Új túra' : 'New Tour') : (lang === 'hu' ? 'Túra generálás' : 'Generate')}</span>
           </button>
         )}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { INITIAL_BARS } from './data/bars';
 import { Bar, TourStop, Language, TourGenerationOptions, SavedTourData } from './types';
 import { TRANSLATIONS } from './data/translations';
-import { generateTourRoute, getDistanceKm } from './utils/geo';
+import { generateTourRoute, getDistanceKm, insertStopOptimally } from './utils/geo';
 import { getRandomChallenge } from './data/challenges';
 
 // Components
@@ -75,6 +75,7 @@ export default function App() {
   const [isAddBarOpen, setIsAddBarOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Save tour changes to localStorage
   const persistTour = useCallback((stops: TourStop[]) => {
@@ -190,7 +191,7 @@ export default function App() {
     persistTour(updated);
   };
 
-  // Add individual bar from catalog or roulette to current tour
+  // Add individual bar from catalog or roulette to current tour with optimal topological placement
   const handleAddBarToTour = (bar: Bar) => {
     if (tourStops.some((s) => s.bar.id === bar.id)) return;
     const challenge = getRandomChallenge(lang);
@@ -201,7 +202,7 @@ export default function App() {
       challengeEn: challenge.en,
       completed: false,
     };
-    const updated = [...tourStops, newStop];
+    const updated = insertStopOptimally(tourStops, newStop);
     persistTour(updated);
     setSelectedBarId(bar.id);
   };
@@ -245,20 +246,54 @@ export default function App() {
 
   const completedStopsCount = tourStops.filter((s) => s.completed).length;
 
+  // Determine whether foreground map controls (new tour, locate me, fit tour) should be sent to background
+  const isAnyModalOpen =
+    isPlannerOpen ||
+    isCatalogOpen ||
+    isRouletteOpen ||
+    isAddBarOpen ||
+    isAboutOpen ||
+    isContactOpen;
+
+  const isMapObscured = isMobileMenuOpen || mobileTab === 'tour' || isAnyModalOpen;
+
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0A0A0A] text-[#EEEEEE] overflow-hidden font-sans">
       {/* Top Header */}
       <Header
         lang={lang}
         onLanguageChange={handleLanguageChange}
-        onQuickGenerate={handleQuickGenerate}
-        onOpenPlanner={() => setIsPlannerOpen(true)}
-        onOpenCatalog={() => setIsCatalogOpen(true)}
-        onOpenRoulette={() => setIsRouletteOpen(true)}
-        onOpenAddBar={() => setIsAddBarOpen(true)}
-        onOpenAbout={() => setIsAboutOpen(true)}
-        onOpenContact={() => setIsContactOpen(true)}
+        onQuickGenerate={() => {
+          handleQuickGenerate();
+          setIsMobileMenuOpen(false);
+        }}
+        onOpenPlanner={() => {
+          setIsPlannerOpen(true);
+          setIsMobileMenuOpen(false);
+        }}
+        onOpenCatalog={() => {
+          setIsCatalogOpen(true);
+          setIsMobileMenuOpen(false);
+        }}
+        onOpenRoulette={() => {
+          setIsRouletteOpen(true);
+          setIsMobileMenuOpen(false);
+        }}
+        onOpenAddBar={() => {
+          setIsAddBarOpen(true);
+          setIsMobileMenuOpen(false);
+        }}
+        onOpenAbout={() => {
+          setIsAboutOpen(true);
+          setIsMobileMenuOpen(false);
+        }}
+        onOpenContact={() => {
+          setIsContactOpen(true);
+          setIsMobileMenuOpen(false);
+        }}
         tourStopsCount={tourStops.length}
+        isMobileMenuOpen={isMobileMenuOpen}
+        onToggleMobileMenu={setIsMobileMenuOpen}
       />
 
       {/* Main Map & Interactive UI Body */}
@@ -277,6 +312,7 @@ export default function App() {
           onAddBarToTour={handleAddBarToTour}
           onLocateUser={handleLocateUser}
           onQuickGenerate={handleQuickGenerate}
+          isObscured={isMapObscured}
         />
 
         {/* Mobile Active Stop Card (Shown at the bottom of the map above bottom bar on mobile) */}

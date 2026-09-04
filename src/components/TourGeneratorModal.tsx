@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Sliders, MapPin } from 'lucide-react';
+import { X, Route, Sliders, MapPin } from 'lucide-react';
 import { PubCategory, TourGenerationOptions, Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
 import { CITY_HUBS } from '../data/bars';
@@ -251,7 +251,7 @@ export const TourGeneratorModal: React.FC<TourGeneratorModalProps> = ({
             type="submit"
             className="w-full py-3.5 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] font-black rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[#FDD835]/20 active:scale-98 transition-all mt-2 cursor-pointer"
           >
-            <Sparkles className="w-4 h-4 fill-[#111111]" />
+            <Route className="w-4 h-4 text-[#111111] stroke-[2.5]" />
             <span>{t.btnGenerateTourNow}</span>
           </button>
         </form>

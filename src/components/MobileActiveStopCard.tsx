@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { 
   Check, 
   ChevronLeft, 
   ChevronRight, 
+  ChevronDown,
+  ChevronUp,
   Navigation, 
   Dices, 
   ListOrdered,
-  Sparkles,
+  Route,
   MapPin,
   Footprints,
   ExternalLink,
@@ -42,6 +44,12 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
   lang,
 }) => {
   const t = TRANSLATIONS[lang];
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showNavOptions, setShowNavOptions] = useState(false);
+
+  // Touch gesture state for horizontal stop swiping and vertical collapse/expand
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [dragOffset, setDragOffset] = useState<number>(0);
 
   if (tourStops.length === 0) {
     return (
@@ -63,7 +71,7 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
             onClick={onQuickGenerate}
             className="flex-1 py-2.5 px-3 bg-[#FDD835] text-[#111111] font-black rounded-xl text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-lg shadow-[#FDD835]/20 active:scale-95 cursor-pointer min-h-[44px]"
           >
-            <Sparkles className="w-4 h-4 fill-[#111111]" />
+            <Route className="w-4 h-4 text-[#111111] stroke-[2.5]" />
             <span>{t.btnGen}</span>
           </button>
           <button
@@ -93,16 +101,14 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
   const googleMapsUrl = getGoogleMapsWalkingUrl(bar.name, bar.street, bar.coords);
   const appleMapsUrl = getAppleMapsWalkingUrl(bar.name, bar.street, bar.coords);
 
-  const [showNavOptions, setShowNavOptions] = useState(false);
-
-  const handlePrev = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handlePrev = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     const prevIdx = activeIndex > 0 ? activeIndex - 1 : tourStops.length - 1;
     onSelectBar(tourStops[prevIdx].bar.id);
   };
 
-  const handleNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleNext = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     const nextIdx = activeIndex < tourStops.length - 1 ? activeIndex + 1 : 0;
     onSelectBar(tourStops[nextIdx].bar.id);
   };
@@ -120,8 +126,136 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
     }
   };
 
+  // Touch handlers for swiping left/right to change stops, and swiping down/up to collapse/expand
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      touchStartRef.current = {
+        x: e.touches[0].clientX,
+        y: e.touches[0].clientY,
+      };
+      setDragOffset(0);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartRef.current || e.touches.length !== 1) return;
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const deltaX = currentX - touchStartRef.current.x;
+    const deltaY = currentY - touchStartRef.current.y;
+
+    // Provide visual drag feedback horizontally if mostly horizontal gesture
+    if (Math.abs(deltaX) > Math.abs(deltaY)) {
+      setDragOffset(deltaX * 0.35);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    // 1. Vertical gesture takes precedence when predominantly vertical
+    if (absY > 38 && absY > absX) {
+      if (deltaY > 38) {
+        // Swiped down -> Collapse card
+        setIsCollapsed(true);
+      } else if (deltaY < -28) {
+        // Swiped up -> Expand card
+        setIsCollapsed(false);
+      }
+    } 
+    // 2. Horizontal gesture: Swipe between stops
+    else if (absX > 40 && absX > absY) {
+      if (deltaX < -40) {
+        // Swipe left -> Next stop
+        handleNext();
+      } else if (deltaX > 40) {
+        // Swipe right -> Previous stop
+        handlePrev();
+      }
+    }
+
+    touchStartRef.current = null;
+    setDragOffset(0);
+  };
+
+  // If collapsed: Render sleek, compact floating bottom bar (leaves map 100% open!)
+  if (isCollapsed) {
+    return (
+      <div 
+        onClick={() => setIsCollapsed(false)}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        className="md:hidden absolute bottom-[4.25rem] left-3 right-3 z-30 bg-[#0F0F0F]/95 backdrop-blur-xl border border-[#FDD835]/40 rounded-2xl px-3.5 py-2 shadow-2xl flex items-center justify-between gap-3 cursor-pointer hover:bg-[#181818] active:scale-98 transition-all animate-in fade-in slide-in-from-bottom-2 duration-150 select-none"
+        title={lang === 'hu' ? 'Koppints a kártya megnyitásához' : 'Tap to expand tour card'}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shrink-0 ${
+              isDone ? 'bg-emerald-500 text-[#111111]' : 'bg-[#FDD835] text-[#111111]'
+            }`}
+          >
+            #{activeIndex + 1}/{tourStops.length}
+          </span>
+          <span className="text-xs font-black text-white truncate">
+            {bar.name}
+          </span>
+          <span className="text-[10px] text-white/50 hidden sm:inline truncate">
+            • {bar.district}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={handleCheckInClick}
+            className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider flex items-center gap-1 transition-transform active:scale-90 ${
+              isDone
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                : 'bg-[#FDD835] text-[#111111]'
+            }`}
+          >
+            {isDone ? <Check className="w-3 h-3 stroke-[3]" /> : null}
+            <span>{isDone ? t.checkInDone : (lang === 'hu' ? 'Megérkeztem' : 'Check In')}</span>
+          </button>
+
+          <div className="flex items-center gap-1 text-[10px] font-extrabold text-[#FDD835] uppercase tracking-wider pl-1.5 border-l border-white/10">
+            <ChevronUp className="w-4 h-4 stroke-[2.5]" />
+            <span className="hidden xs:inline">{lang === 'hu' ? 'Kinyit' : 'Open'}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Expanded Full Active Tour Stop Card
   return (
-    <div className="md:hidden absolute bottom-[4.5rem] left-3 right-3 z-30 bg-[#0F0F0F]/95 backdrop-blur-xl border border-white/15 rounded-2xl p-3.5 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+    <div 
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        transform: dragOffset !== 0 ? `translateX(${dragOffset}px)` : undefined,
+        transition: dragOffset === 0 ? 'transform 0.18s ease-out' : 'none',
+      }}
+      className="md:hidden absolute bottom-[4.25rem] left-3 right-3 z-30 bg-[#0F0F0F]/95 backdrop-blur-xl border border-white/15 rounded-2xl p-3 sm:p-3.5 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200"
+    >
+      {/* Pull-down / Swipe-down Grab Handle Pill */}
+      <div 
+        onClick={() => setIsCollapsed(true)}
+        className="w-full flex flex-col items-center justify-center -mt-1 mb-1.5 pt-0.5 pb-1 cursor-pointer group select-none"
+        title={lang === 'hu' ? 'Húzd lefelé az összecsukáshoz' : 'Swipe down to collapse'}
+      >
+        <div className="w-10 h-1 bg-white/25 group-hover:bg-[#FDD835] rounded-full transition-colors" />
+        <span className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-0.5 group-hover:text-[#FDD835] transition-colors">
+          {lang === 'hu' ? '▼ összecsukás (lefele húzás)' : '▼ swipe down to collapse'}
+        </span>
+      </div>
+
       {/* Navigation App Chooser Popover */}
       {showNavOptions && (
         <div className="absolute -top-32 left-0 right-0 bg-[#161616] border border-[#FDD835]/40 rounded-2xl p-3 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
@@ -132,7 +266,7 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
             </span>
             <button
               onClick={() => setShowNavOptions(false)}
-              className="p-1 text-white/50 hover:text-white rounded-lg"
+              className="p-1 text-white/50 hover:text-white rounded-lg cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -184,25 +318,25 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
           </span>
         </div>
 
-        {/* Step Prev/Next & Quick Re-generate Buttons */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Step Prev/Next & Quick Re-generate & Collapse Buttons */}
+        <div className="flex items-center gap-1 shrink-0">
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onQuickGenerate();
             }}
-            className="flex items-center gap-1 px-2.5 py-1 bg-[#FDD835]/15 hover:bg-[#FDD835]/25 text-[#FDD835] border border-[#FDD835]/30 rounded-lg text-[10px] font-black uppercase tracking-wider active:scale-95 cursor-pointer min-h-[34px]"
-            title={lang === 'hu' ? 'Új túra generálása azonnal' : 'Generate new tour instantly'}
+            className="flex items-center gap-1 px-2 py-1 bg-[#FDD835]/15 hover:bg-[#FDD835]/25 text-[#FDD835] border border-[#FDD835]/30 rounded-lg text-[10px] font-black uppercase tracking-wider active:scale-95 cursor-pointer min-h-[32px]"
+            title={lang === 'hu' ? 'Új túra generálása' : 'Generate new tour'}
           >
-            <Sparkles className="w-3 h-3 fill-[#FDD835]" />
-            <span>{lang === 'hu' ? 'Új túra' : 'New'}</span>
+            <Route className="w-3 h-3 text-[#FDD835] stroke-[2.5]" />
+            <span>{lang === 'hu' ? 'Új' : 'New'}</span>
           </button>
 
           <button
             type="button"
             onClick={handlePrev}
-            className="p-1.5 text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg active:scale-95 cursor-pointer min-w-[34px] min-h-[34px] flex items-center justify-center border border-white/5"
+            className="p-1.5 text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg active:scale-95 cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center border border-white/5"
             title={t.prevStop}
             aria-label="Previous stop"
           >
@@ -211,17 +345,27 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
           <button
             type="button"
             onClick={handleNext}
-            className="p-1.5 text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg active:scale-95 cursor-pointer min-w-[34px] min-h-[34px] flex items-center justify-center border border-white/5"
+            className="p-1.5 text-white/60 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg active:scale-95 cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center border border-white/5"
             title={t.nextStop}
             aria-label="Next stop"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
+
+          <button
+            type="button"
+            onClick={() => setIsCollapsed(true)}
+            className="p-1.5 text-white/40 hover:text-[#FDD835] bg-white/5 hover:bg-white/10 rounded-lg active:scale-95 cursor-pointer min-w-[32px] min-h-[32px] flex items-center justify-center border border-white/5"
+            title={lang === 'hu' ? 'Összecsukás' : 'Collapse'}
+            aria-label="Collapse card"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
       {/* Bar Name & Address */}
-      <div className="mb-2.5">
+      <div className="mb-2">
         <div className="flex items-center justify-between gap-2">
           <h4
             className={`font-black text-base leading-tight truncate ${
@@ -239,7 +383,7 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
       </div>
 
       {/* Challenge Callout Box */}
-      <div className="bg-black/50 border-l-2 border-[#FDD835] p-2 rounded-r-lg mb-3">
+      <div className="bg-black/50 border-l-2 border-[#FDD835] p-2 rounded-r-lg mb-2.5">
         <div className="flex items-center justify-between gap-1 mb-0.5">
           <span className="text-[9px] uppercase font-black tracking-widest text-[#FDD835]">
             🎯 {t.challengeTitle}
@@ -265,7 +409,7 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
         <button
           type="button"
           onClick={handleCheckInClick}
-          className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer min-h-[44px] shadow-md ${
+          className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer min-h-[42px] shadow-md ${
             isDone
               ? 'bg-emerald-500 text-[#111111] shadow-[0_0_12px_rgba(16,185,129,0.4)]'
               : 'bg-[#FDD835] text-[#111111] shadow-[0_0_12px_rgba(253,216,53,0.3)] hover:bg-[#FDD835]/90'
@@ -293,7 +437,7 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
             e.stopPropagation();
             setShowNavOptions(!showNavOptions);
           }}
-          className="py-2.5 px-3 bg-white/10 hover:bg-white/15 text-white border border-white/10 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 min-h-[44px] cursor-pointer"
+          className="py-2.5 px-3 bg-white/10 hover:bg-white/15 text-white border border-white/10 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 active:scale-95 min-h-[42px] cursor-pointer"
           title={t.openInMaps}
         >
           <Navigation className="w-3.5 h-3.5 text-[#FDD835]" />
@@ -304,7 +448,7 @@ export const MobileActiveStopCard: React.FC<MobileActiveStopCardProps> = ({
         <button
           type="button"
           onClick={onViewFullTour}
-          className="p-2.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 rounded-xl transition-colors active:scale-95 cursor-pointer min-w-[44px] min-h-[44px] flex items-center justify-center"
+          className="p-2.5 bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 rounded-xl transition-colors active:scale-95 cursor-pointer min-w-[42px] min-h-[42px] flex items-center justify-center"
           title={t.viewFullTour}
           aria-label={t.viewFullTour}
         >

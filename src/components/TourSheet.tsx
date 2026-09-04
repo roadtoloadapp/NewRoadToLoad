@@ -7,7 +7,7 @@ import {
   RefreshCw, 
   Copy, 
   Footprints, 
-  Sparkles, 
+  Route, 
   Dices, 
   ExternalLink,
   MessageSquare,
@@ -101,8 +101,8 @@ export const TourSheet: React.FC<TourSheetProps> = ({
     return (
       <div className={`${
         isMobileView
-          ? 'fixed inset-x-3 top-20 z-40 max-w-lg mx-auto'
-          : 'hidden sm:block absolute top-20 right-4 z-40 w-[calc(100vw-2rem)] sm:w-[340px]'
+          ? 'fixed inset-x-3 top-16 bottom-16 z-[500] max-w-lg mx-auto flex flex-col justify-center'
+          : 'hidden sm:block absolute top-20 right-4 z-[450] w-[calc(100vw-2rem)] sm:w-[340px]'
       } bg-[#0F0F0F]/95 backdrop-blur-xl border border-[#FDD835]/30 rounded-2xl p-5 shadow-2xl animate-in fade-in zoom-in-95 duration-200`}>
         <div className="flex flex-col items-center text-center">
           <div className="w-12 h-12 rounded-xl bg-[#FDD835]/10 border border-[#FDD835]/30 flex items-center justify-center mb-3 text-[#FDD835]">
@@ -116,7 +116,7 @@ export const TourSheet: React.FC<TourSheetProps> = ({
               onClick={onQuickGenerate}
               className="flex-1 py-3 px-4 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] font-black rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-[#FDD835]/20 active:scale-95 transition-all cursor-pointer min-h-[44px]"
             >
-              <Sparkles className="w-4 h-4 fill-[#111111]" />
+              <Route className="w-4 h-4 text-[#111111] stroke-[2.5]" />
               <span>{t.btnGen}</span>
             </button>
             <button
@@ -135,8 +135,8 @@ export const TourSheet: React.FC<TourSheetProps> = ({
     <div
       className={
         isMobileView
-          ? 'fixed inset-x-2 top-16 bottom-16 z-40 flex flex-col justify-end'
-          : `hidden sm:block absolute z-40 transition-all duration-300 ease-out shadow-2xl sm:top-20 sm:right-4 sm:w-[350px] lg:w-[380px] max-h-[82vh] ${
+          ? 'fixed inset-x-2 top-16 bottom-16 z-[500] flex flex-col justify-end'
+          : `hidden sm:block absolute z-[450] transition-all duration-300 ease-out shadow-2xl sm:top-20 sm:right-4 sm:w-[350px] lg:w-[380px] max-h-[82vh] ${
               isMinimized ? 'w-auto' : ''
             }`
       }
