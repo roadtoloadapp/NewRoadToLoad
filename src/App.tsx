@@ -105,11 +105,11 @@ export default function App() {
     setSelectedBarId(newTour[0]?.bar.id || null);
   }, [allBars, lang, persistTour]);
 
-  // Initial load: if no tour, generate a default tour so map is full of life
-  useEffect(() => {
-    if (tourStops.length === 0) {
-      handleQuickGenerate();
-    }
+  // Clear active tour back to clean un-generated map state
+  const handleClearTour = useCallback(() => {
+    setTourStops([]);
+    setSelectedBarId(null);
+    localStorage.removeItem(LOCAL_STORAGE_TOUR_KEY);
   }, []);
 
   // Custom Tour Generator
@@ -344,6 +344,7 @@ export default function App() {
             onReRollChallenge={handleReRollChallenge}
             onMoveStop={handleMoveStop}
             onQuickGenerate={handleQuickGenerate}
+            onClearTour={handleClearTour}
             onOpenPlanner={() => setIsPlannerOpen(true)}
             isMobileView={false}
           />
@@ -366,6 +367,7 @@ export default function App() {
               onReRollChallenge={handleReRollChallenge}
               onMoveStop={handleMoveStop}
               onQuickGenerate={handleQuickGenerate}
+              onClearTour={handleClearTour}
               onOpenPlanner={() => setIsPlannerOpen(true)}
               isMobileView={true}
             />

@@ -1,14 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import { maplibreGL } from '@maplibre/maplibre-gl-leaflet';
 import { Bar, TourStop, Language } from '../types';
 import { TRANSLATIONS } from '../data/translations';
-import { 
-  Crosshair, 
-  Maximize2, 
-  Navigation, 
-  ExternalLink,
-  Footprints,
-  Route
+import {
+  Crosshair,
+  Maximize2,
+  Navigation,
+  Route,
+  Plus,
+  Minus,
+  Layers,
+  Loader2,
 } from 'lucide-react';
 import { calculateTourStats } from '../utils/geo';
 import { fetchStreetWalkingRoute } from '../utils/navigationRoute';
@@ -27,7 +31,16 @@ interface MapViewProps {
   isObscured?: boolean;
 }
 
-// Generate pixel-perfect vector pin with mathematically centered numbers
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Crisp geometric vector pin for active tour stops
 function getTourStopMarkerSvg(
   num: number,
   isDone: boolean,
@@ -36,60 +49,59 @@ function getTourStopMarkerSvg(
   const width = isSelected ? 42 : 36;
   const height = isSelected ? 52 : 44;
   const fill = isDone ? '#10B981' : '#FDD835';
-  const stroke = isSelected ? '#FFFFFF' : '#000000';
-  const strokeWidth = isSelected ? 2.5 : 1.5;
+  const stroke = isSelected ? '#FFFFFF' : '#0A0A0A';
+  const strokeWidth = isSelected ? 2.5 : 1.75;
   const textFill = isDone ? '#10B981' : '#FDD835';
-  const fontSize = isDone ? 15 : (num >= 10 ? 11.5 : 13.5);
+  const fontSize = num >= 10 ? 11.5 : 13.5;
+
+  const innerContent = isDone
+    ? `<path d="M13.5 17.5 L16.5 20.5 L22.8 14.2" stroke="#10B981" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none" />`
+    : `<text
+        x="18"
+        y="18"
+        text-anchor="middle"
+        dominant-baseline="central"
+        fill="${textFill}"
+        font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif"
+        font-weight="800"
+        font-size="${fontSize}"
+        style="font-variant-numeric: tabular-nums; pointer-events: none; user-select: none;"
+      >${num}</text>`;
 
   return `
     <div class="pro-marker-root ${isSelected ? 'marker-selected-pulse' : ''}" style="width: ${width}px; height: ${height}px;">
-      <svg width="${width}" height="${height}" viewBox="0 0 36 46" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.7));">
-        <!-- Pin Teardrop Body pointing directly to tip [18, 45] -->
-        <path 
-          d="M18 45 C18 45 3.5 28.5 3.5 17.5 C3.5 9.49 9.99 3 18 3 C26.01 3 32.5 9.49 32.5 17.5 C32.5 28.5 18 45 18 45 Z" 
-          fill="${fill}" 
-          stroke="${stroke}" 
+      <svg width="${width}" height="${height}" viewBox="0 0 36 46" fill="none" xmlns="http://www.w3.org/2000/svg" style="overflow: visible; filter: drop-shadow(0 6px 10px rgba(0,0,0,0.75));">
+        <path
+          d="M18 45 C18 45 3.5 28.5 3.5 17.5 C3.5 9.49 9.99 3 18 3 C26.01 3 32.5 9.49 32.5 17.5 C32.5 28.5 18 45 18 45 Z"
+          fill="${fill}"
+          stroke="${stroke}"
           stroke-width="${strokeWidth}"
           stroke-linejoin="round"
         />
-        
-        <!-- High-contrast dark inner circle badge -->
-        <circle 
-          cx="18" 
-          cy="17.5" 
-          r="10.5" 
-          fill="#111111" 
-          stroke="${fill}" 
-          stroke-width="1.5" 
+        <circle
+          cx="18"
+          cy="17.5"
+          r="10.5"
+          fill="#0F0F0F"
         />
-        
-        <!-- Mathematically centered number or checkmark -->
-        <text 
-          x="18" 
-          y="18" 
-          text-anchor="middle" 
-          dominant-baseline="central" 
-          fill="${textFill}" 
-          font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" 
-          font-weight="900" 
-          font-size="${fontSize}"
-          letter-spacing="-0.5px"
-          style="pointer-events: none; user-select: none;"
-        >
-          ${isDone ? '✓' : num}
-        </text>
+        ${innerContent}
       </svg>
     </div>
   `;
 }
 
-// Generate sleek discovery pin for Budapest bars in catalog
+// Clean architectural discovery dot for catalog bars (no emoji clutter)
 function getCatalogMarkerSvg(isSelected: boolean): string {
-  const size = isSelected ? 26 : 22;
+  const hitbox = 28;
+  const dotSize = isSelected ? 16 : 11;
+  const ringStyle = isSelected
+    ? 'background: #FDD835; border: 2.5px solid #FFFFFF; box-shadow: 0 0 0 5px rgba(253, 216, 53, 0.28), 0 4px 12px rgba(0,0,0,0.85);'
+    : 'background: #18181B; border: 2px solid rgba(253, 216, 53, 0.7); box-shadow: 0 2px 8px rgba(0,0,0,0.8);';
+
   return `
-    <div class="pro-catalog-marker ${isSelected ? 'selected' : ''}" style="width: ${size}px; height: ${size}px;">
-      <div class="w-full h-full rounded-full bg-[#161616] border ${isSelected ? 'border-[#FDD835] shadow-[0_0_12px_#FDD835]' : 'border-white/20'} flex items-center justify-center transition-all shadow-md">
-        <span style="font-size: ${isSelected ? '12px' : '10px'}; line-height: 1;">🍺</span>
+    <div class="pro-catalog-marker ${isSelected ? 'selected' : ''}" style="width: ${hitbox}px; height: ${hitbox}px;">
+      <div style="width: ${dotSize}px; height: ${dotSize}px; border-radius: 9999px; ${ringStyle} display: flex; align-items: center; justify-content: center; transition: all 0.18s ease;">
+        ${!isSelected ? '<span style="width: 4px; height: 4px; border-radius: 9999px; background: #FDD835;"></span>' : ''}
       </div>
     </div>
   `;
@@ -109,13 +121,21 @@ export const MapView: React.FC<MapViewProps> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
-  const layersGroupRef = useRef<L.LayerGroup | null>(null);
+  const routeLayerRef = useRef<L.LayerGroup | null>(null);
+  const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const userMarkerRef = useRef<L.Marker | null>(null);
+  const lastTourSigRef = useRef<string>('');
+
   const [streetRouteCoords, setStreetRouteCoords] = useState<[number, number][]>([]);
   const [isRoutingLoading, setIsRoutingLoading] = useState(false);
+  const [showAllBars, setShowAllBars] = useState(true);
 
   const t = TRANSLATIONS[lang];
   const { totalDistanceMeters, totalWalkMinutes } = calculateTourStats(tourStops);
+  const formattedDistance =
+    totalDistanceMeters >= 1000
+      ? `${(totalDistanceMeters / 1000).toFixed(1)} ${t.km}`
+      : `${totalDistanceMeters} ${t.meters}`;
 
   // Fetch real street walking navigation path whenever tour stops change
   useEffect(() => {
@@ -123,7 +143,6 @@ export const MapView: React.FC<MapViewProps> = ({
 
     if (tourStops.length > 1) {
       const directPoints = tourStops.map((s) => s.bar.coords);
-      // Instant fallback so lines appear immediately
       setStreetRouteCoords(directPoints);
       setIsRoutingLoading(true);
 
@@ -149,33 +168,65 @@ export const MapView: React.FC<MapViewProps> = ({
     };
   }, [tourStops]);
 
-  // Initialize Map
+  // Initialize Map (OpenFreeMap Dark Vector + OSM France Raster Fallback)
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
-    // Center on Budapest Ruin Bar district / Erzsébetváros
     const map = L.map(mapContainerRef.current, {
       center: [47.4980, 19.0620],
       zoom: 15,
       zoomControl: false,
     });
 
-    // CartoDB Dark Matter tiles (pure dark aesthetic)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20,
-    }).addTo(map);
+    let usingFallback = false;
+    const addFallbackRasterLayer = () => {
+      if (usingFallback) return;
+      usingFallback = true;
+      L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        subdomains: 'abc',
+        maxZoom: 20,
+        className: 'osm-dark-tiles',
+      }).addTo(map);
+    };
 
-    // Zoom controls at bottom right
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    const isWebGLAvailable = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        return !!(
+          window.WebGLRenderingContext &&
+          (canvas.getContext('webgl2') || canvas.getContext('webgl'))
+        );
+      } catch {
+        return false;
+      }
+    };
 
-    const layerGroup = L.layerGroup().addTo(map);
-    layersGroupRef.current = layerGroup;
+    if (isWebGLAvailable()) {
+      try {
+        const glLayer = maplibreGL({
+          style: 'https://tiles.openfreemap.org/styles/dark',
+        }).addTo(map);
+
+        const glMap = glLayer.getMaplibreMap();
+        glMap?.on('error', () => {
+          if (!glMap.isStyleLoaded()) {
+            map.removeLayer(glLayer);
+            addFallbackRasterLayer();
+          }
+        });
+      } catch {
+        addFallbackRasterLayer();
+      }
+    } else {
+      addFallbackRasterLayer();
+    }
+
+    routeLayerRef.current = L.layerGroup().addTo(map);
+    markersLayerRef.current = L.layerGroup().addTo(map);
     mapInstanceRef.current = map;
 
-    // Handle container resize
     const resizeObserver = new ResizeObserver(() => {
       map.invalidateSize();
     });
@@ -206,7 +257,7 @@ export const MapView: React.FC<MapViewProps> = ({
       } else {
         userMarkerRef.current = L.marker(userCoords, { icon: userIcon }).addTo(map);
         userMarkerRef.current.bindPopup(
-          `<div class="text-xs font-black uppercase tracking-wider text-sky-400">📍 ${lang === 'hu' ? 'Jelenlegi pozíciód' : 'Your Location'}</div>`
+          `<div class="text-xs font-semibold text-sky-400">${lang === 'hu' ? 'Jelenlegi pozíciód' : 'Your Location'}</div>`
         );
       }
     } else if (userMarkerRef.current) {
@@ -215,56 +266,163 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   }, [userCoords, lang]);
 
-  // Render Tour and all bars on map
+  // Render Walking Route Polyline separately so marker clicks never redraw the route
+  useEffect(() => {
+    const routeGroup = routeLayerRef.current;
+    if (!routeGroup) return;
+
+    routeGroup.clearLayers();
+
+    if (tourStops.length > 1) {
+      const polylinePoints =
+        streetRouteCoords.length > 0
+          ? streetRouteCoords
+          : tourStops.map((s) => s.bar.coords);
+
+      // Ambient outer glow
+      L.polyline(polylinePoints, {
+        color: '#FDD835',
+        weight: 10,
+        opacity: 0.14,
+        lineCap: 'round',
+        lineJoin: 'round',
+        className: 'navigation-walking-halo',
+      }).addTo(routeGroup);
+
+      // Crisp dark casing
+      L.polyline(polylinePoints, {
+        color: '#09090B',
+        weight: 6.5,
+        opacity: 0.9,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }).addTo(routeGroup);
+
+      // Primary gold walking path
+      L.polyline(polylinePoints, {
+        color: '#FDD835',
+        weight: 3.5,
+        opacity: 0.98,
+        lineCap: 'round',
+        lineJoin: 'round',
+        className: 'navigation-walking-path',
+      }).addTo(routeGroup);
+
+      // Subtle step dashes
+      L.polyline(polylinePoints, {
+        color: '#111111',
+        weight: 1.8,
+        opacity: 0.65,
+        lineCap: 'round',
+        lineJoin: 'round',
+        dashArray: '1, 8',
+        className: 'navigation-walking-steps',
+      }).addTo(routeGroup);
+    }
+  }, [tourStops, streetRouteCoords]);
+
+  // Render Tour & Discovery Markers
   useEffect(() => {
     const map = mapInstanceRef.current;
-    const layerGroup = layersGroupRef.current;
-    if (!map || !layerGroup) return;
+    const markersGroup = markersLayerRef.current;
+    if (!map || !markersGroup) return;
 
-    layerGroup.clearLayers();
+    markersGroup.clearLayers();
 
     const tourBarIds = new Set(tourStops.map((s) => s.bar.id));
     const activeCoords: [number, number][] = [];
 
-    // 1. Draw real street walking navigation polyline for tour stops
-    if (tourStops.length > 1) {
-      const polylinePoints = streetRouteCoords.length > 0 
-        ? streetRouteCoords 
-        : tourStops.map((s) => s.bar.coords);
-      
-      // Layer 1: Dark casing outline for crisp contrast against dark map tiles
-      L.polyline(polylinePoints, {
-        color: '#000000',
-        weight: 8,
-        opacity: 0.85,
-        lineCap: 'round',
-        lineJoin: 'round',
-        className: 'navigation-walking-halo',
-      }).addTo(layerGroup);
+    // 1. Discovery catalog pins (only visible once a tour is generated, or if a single bar was explicitly selected)
+    const hasGeneratedTour = tourStops.length > 0;
+    const discoveryBars = hasGeneratedTour
+      ? showAllBars
+        ? allBars.filter((b) => !tourBarIds.has(b.id))
+        : []
+      : selectedBarId
+        ? allBars.filter((b) => b.id === selectedBarId)
+        : [];
 
-      // Layer 2: Radiant solid gold walking track
-      L.polyline(polylinePoints, {
-        color: '#FDD835',
-        weight: 5,
-        opacity: 0.95,
-        lineCap: 'round',
-        lineJoin: 'round',
-        className: 'navigation-walking-path',
-      }).addTo(layerGroup);
+    if (discoveryBars.length > 0) {
+      discoveryBars.forEach((bar) => {
+          const isSelected = selectedBarId === bar.id;
+          const hitbox = 28;
 
-      // Layer 3: Walking step beads (Apple & Google Maps walking directions aesthetic)
-      L.polyline(polylinePoints, {
-        color: '#111111',
-        weight: 2.2,
-        opacity: 0.95,
-        lineCap: 'round',
-        lineJoin: 'round',
-        dashArray: '2, 9',
-        className: 'navigation-walking-steps',
-      }).addTo(layerGroup);
+          const icon = L.divIcon({
+            className: 'custom-map-marker',
+            html: getCatalogMarkerSvg(isSelected),
+            iconSize: [hitbox, hitbox],
+            iconAnchor: [hitbox / 2, hitbox / 2],
+            popupAnchor: [0, -14],
+          });
+
+          const priceStr = '€'.repeat(bar.priceLevel);
+          const googleMapsUrl = getGoogleMapsWalkingUrl(bar.name, bar.street, bar.coords);
+          const appleMapsUrl = getAppleMapsWalkingUrl(bar.name, bar.street, bar.coords);
+          const desc = lang === 'hu' ? bar.descriptionHu : bar.descriptionEn;
+
+          const addButtonHtml = onAddBarToTour
+            ? `<button type="button" data-add-bar-id="${escapeHtml(bar.id)}" class="w-full py-2 px-3 mb-2 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] text-xs font-bold rounded-xl transition-transform active:scale-[0.98] cursor-pointer text-center">+ ${escapeHtml(t.addToTour)}</button>`
+            : '';
+
+          const popupContent = `
+            <div class="max-w-[248px]">
+              <div class="flex items-center gap-1.5 text-[11px] text-white/50 font-medium mb-1 pr-6">
+                <span class="truncate">${escapeHtml(bar.district)}</span>
+                <span aria-hidden="true">·</span>
+                <span class="tabular-nums text-white/70">${priceStr}</span>
+              </div>
+              <h4 class="font-bold text-[15px] text-white tracking-tight leading-snug mb-0.5">${escapeHtml(bar.name)}</h4>
+              <p class="text-xs text-white/50 mb-2.5">${escapeHtml(bar.street)}</p>
+              <div class="bg-white/[0.04] border border-white/10 rounded-xl p-2.5 mb-3">
+                <p class="text-[11.5px] text-white/75 line-clamp-3 leading-relaxed">${escapeHtml(desc)}</p>
+              </div>
+              ${addButtonHtml}
+              <div class="grid grid-cols-2 gap-1.5">
+                <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer"
+                   class="flex items-center justify-center gap-1 py-1.5 px-2.5 bg-white/10 hover:bg-white/15 text-white text-[11px] font-semibold rounded-lg transition-colors border border-white/10">
+                  <span>Google</span><span aria-hidden="true">↗</span>
+                </a>
+                <a href="${appleMapsUrl}" target="_blank" rel="noopener noreferrer"
+                   class="flex items-center justify-center gap-1 py-1.5 px-2.5 bg-white/10 hover:bg-white/15 text-white text-[11px] font-semibold rounded-lg transition-colors border border-white/10">
+                  <span>Apple</span><span aria-hidden="true">↗</span>
+                </a>
+              </div>
+            </div>
+          `;
+
+          const marker = L.marker(bar.coords, { icon, zIndexOffset: isSelected ? 400 : 0 })
+            .addTo(markersGroup)
+            .bindTooltip(escapeHtml(bar.name), {
+              direction: 'top',
+              offset: [0, -10],
+              className: 'map-venue-tooltip',
+            })
+            .bindPopup(popupContent);
+
+          marker.on('click', () => {
+            onSelectBar(bar.id);
+          });
+
+          marker.on('popupopen', (e) => {
+            const popupEl = e.popup.getElement();
+            const addBtn = popupEl?.querySelector(`[data-add-bar-id="${CSS.escape(bar.id)}"]`);
+            if (addBtn && onAddBarToTour) {
+              addBtn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                onAddBarToTour(bar);
+                marker.closePopup();
+              });
+            }
+          });
+
+          if (isSelected) {
+            marker.openPopup();
+          }
+        });
     }
 
-    // 2. Add Tour Stop Markers
+    // 2. Active Tour Stop Markers
     tourStops.forEach((stop, index) => {
       const bar = stop.bar;
       activeCoords.push(bar.coords);
@@ -287,123 +445,83 @@ export const MapView: React.FC<MapViewProps> = ({
       const priceStr = '€'.repeat(bar.priceLevel);
       const googleMapsUrl = getGoogleMapsWalkingUrl(bar.name, bar.street, bar.coords);
       const appleMapsUrl = getAppleMapsWalkingUrl(bar.name, bar.street, bar.coords);
+      const challengeText = lang === 'hu' ? stop.challengeHu : stop.challengeEn;
 
       const popupContent = `
-        <div class="p-1 max-w-[250px]">
-          <div class="flex items-center justify-between gap-2 mb-1.5">
-            <span class="text-[9px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded bg-[#FDD835] text-[#111111]">
-              #${index + 1} • ${t.stopLabel}
-            </span>
-            <span class="text-xs font-bold text-white/50">${priceStr}</span>
+        <div class="max-w-[254px]">
+          <div class="flex items-center gap-1.5 text-[11px] font-medium mb-1 pr-6">
+            <span class="text-[#FDD835] font-bold tabular-nums">${index + 1}. ${escapeHtml(t.stopLabel)}</span>
+            <span class="text-white/30" aria-hidden="true">·</span>
+            <span class="text-white/60 tabular-nums">${priceStr}</span>
+            ${isDone ? `<span class="text-white/30" aria-hidden="true">·</span><span class="text-emerald-400 font-semibold">${lang === 'hu' ? 'Teljesítve' : 'Done'}</span>` : ''}
           </div>
-          <h4 class="font-black text-sm text-[#FDD835] tracking-tight mb-0.5">${bar.name}</h4>
-          <p class="text-[11px] text-white/50 mb-2">${bar.street}</p>
-          <div class="bg-black/60 p-2 rounded border-l-2 border-[#FDD835] mb-2.5 text-xs">
-            <div class="text-[9px] font-black uppercase tracking-wider text-[#FDD835] mb-0.5">🎯 ${t.challengeTitle}</div>
-            <div class="text-[#EEEEEE] italic text-[11px]">"${lang === 'hu' ? stop.challengeHu : stop.challengeEn}"</div>
+          <h4 class="font-bold text-[15px] text-white tracking-tight leading-snug mb-0.5">${escapeHtml(bar.name)}</h4>
+          <p class="text-xs text-white/50 mb-2.5">${escapeHtml(bar.street)}</p>
+          <div class="bg-white/[0.04] border border-white/10 rounded-xl p-2.5 mb-3">
+            <div class="text-[10px] font-semibold uppercase tracking-wider text-[#FDD835]/90 mb-1">${escapeHtml(t.challengeTitle)}</div>
+            <p class="text-xs text-white/85 leading-relaxed">${escapeHtml(challengeText)}</p>
           </div>
           <div class="grid grid-cols-2 gap-1.5">
-            <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" 
-               class="flex items-center justify-center gap-1 py-1.5 px-2 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] text-[11px] font-black uppercase tracking-wider rounded transition-transform active:scale-95 text-center shadow-sm">
-              <span>Google</span> ↗
+            <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer"
+               class="flex items-center justify-center gap-1 py-2 px-2.5 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] text-[11px] font-bold rounded-xl transition-transform active:scale-[0.98] shadow-sm">
+              <span>Google</span><span aria-hidden="true">↗</span>
             </a>
-            <a href="${appleMapsUrl}" target="_blank" rel="noopener noreferrer" 
-               class="flex items-center justify-center gap-1 py-1.5 px-2 bg-white/15 hover:bg-white/25 text-white text-[11px] font-black uppercase tracking-wider rounded transition-transform active:scale-95 text-center border border-white/15">
-              <span>Apple (iOS)</span> ↗
+            <a href="${appleMapsUrl}" target="_blank" rel="noopener noreferrer"
+               class="flex items-center justify-center gap-1 py-2 px-2.5 bg-white/10 hover:bg-white/15 text-white text-[11px] font-semibold rounded-xl transition-colors border border-white/10">
+              <span>Apple (iOS)</span><span aria-hidden="true">↗</span>
             </a>
           </div>
         </div>
       `;
 
-      const marker = L.marker(bar.coords, { icon })
-        .addTo(layerGroup)
+      const marker = L.marker(bar.coords, {
+        icon,
+        zIndexOffset: isSelected ? 1000 : 600 + index,
+      })
+        .addTo(markersGroup)
+        .bindTooltip(`${index + 1}. ${escapeHtml(bar.name)}`, {
+          direction: 'top',
+          offset: [0, -sizeH + 6],
+          className: 'map-venue-tooltip',
+        })
         .bindPopup(popupContent);
 
       marker.on('click', () => {
         onSelectBar(bar.id);
       });
 
-      if (selectedBarId === bar.id) {
+      if (isSelected) {
         marker.openPopup();
       }
     });
 
-    // 3. Add other Budapest bars in catalog as subtle discovery pins
-    allBars
-      .filter((b) => !tourBarIds.has(b.id))
-      .forEach((bar) => {
-        const isSelected = selectedBarId === bar.id;
-        const size = isSelected ? 26 : 22;
-
-        const icon = L.divIcon({
-          className: 'custom-map-marker',
-          html: getCatalogMarkerSvg(isSelected),
-          iconSize: [size, size],
-          iconAnchor: [size / 2, size / 2],
-          popupAnchor: [0, -size / 2 - 4],
-        });
-
-        const priceStr = '€'.repeat(bar.priceLevel);
-        const googleMapsUrl = getGoogleMapsWalkingUrl(bar.name, bar.street, bar.coords);
-        const appleMapsUrl = getAppleMapsWalkingUrl(bar.name, bar.street, bar.coords);
-
-        const popupContent = `
-          <div class="p-1 max-w-[230px]">
-            <div class="flex items-center justify-between gap-2 mb-1">
-              <span class="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-white/10 text-white/70">
-                ${bar.district}
-              </span>
-              <span class="text-xs font-bold text-white/50">${priceStr}</span>
-            </div>
-            <h4 class="font-black text-sm text-[#FDD835] tracking-tight mb-0.5">${bar.name}</h4>
-            <p class="text-[11px] text-white/50 mb-2">${bar.street}</p>
-            <p class="text-xs text-white/70 line-clamp-2 mb-2.5 leading-relaxed text-[11px]">
-              ${lang === 'hu' ? bar.descriptionHu : bar.descriptionEn}
-            </p>
-            <div class="grid grid-cols-2 gap-1.5">
-              <a href="${googleMapsUrl}" target="_blank" rel="noopener noreferrer" 
-                 class="block text-center py-1.5 px-2 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] text-[10px] font-black uppercase tracking-wider rounded transition-transform active:scale-95">
-                Google ↗
-              </a>
-              <a href="${appleMapsUrl}" target="_blank" rel="noopener noreferrer" 
-                 class="block text-center py-1.5 px-2 bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold uppercase tracking-wider rounded transition-colors border border-white/10">
-                Apple ↗
-              </a>
-            </div>
-          </div>
-        `;
-
-        const marker = L.marker(bar.coords, { icon })
-          .addTo(layerGroup)
-          .bindPopup(popupContent);
-
-        marker.on('click', () => {
-          onSelectBar(bar.id);
-        });
-
-        if (selectedBarId === bar.id) {
-          marker.openPopup();
-        }
-      });
-
-    // Auto-fit tour bounds if active tour exists
-    if (activeCoords.length > 0) {
+    // Only auto-fit tour bounds when the tour stops list itself changes (not on marker click)
+    const tourSig = tourStops.map((s) => s.bar.id).join('|');
+    if (activeCoords.length > 0 && tourSig !== lastTourSigRef.current) {
+      lastTourSigRef.current = tourSig;
       const bounds = L.latLngBounds(activeCoords);
       map.fitBounds(bounds, {
         padding: [80, 80],
         maxZoom: 16,
       });
+    } else if (activeCoords.length === 0) {
+      lastTourSigRef.current = '';
     }
-  }, [allBars, tourStops, selectedBarId, lang, onSelectBar, t, streetRouteCoords]);
+  }, [allBars, tourStops, selectedBarId, lang, onSelectBar, onAddBarToTour, t, showAllBars]);
 
-  // Center Budapest function
-  const handleCenterBudapest = () => {
-    if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([47.4980, 19.0620], 15, { duration: 0.8 });
-    }
+  // Map control handlers
+  const handleZoomIn = () => {
+    mapInstanceRef.current?.zoomIn();
   };
 
-  // Fit active tour bounds
+  const handleZoomOut = () => {
+    mapInstanceRef.current?.zoomOut();
+  };
+
+  const handleCenterBudapest = () => {
+    mapInstanceRef.current?.flyTo([47.4980, 19.0620], 15, { duration: 0.7 });
+  };
+
   const handleFitTour = () => {
     if (mapInstanceRef.current && tourStops.length > 0) {
       const coords = tourStops.map((s) => s.bar.coords);
@@ -415,107 +533,197 @@ export const MapView: React.FC<MapViewProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full bg-[#121212] overflow-hidden">
-      {/* Subtle Dot Grid Background Overlay */}
-      <div className="absolute inset-0 pointer-events-none opacity-5 dot-grid-pattern z-0" />
-
+    <div className="relative w-full h-full bg-[#0A0A0A] overflow-hidden">
       {/* Map Container */}
       <div ref={mapContainerRef} className="w-full h-full relative z-10" id="map" />
 
-      {/* Walking GPS Navigation Status Tag */}
-      {tourStops.length > 1 && (
-        <div className={`absolute top-3 right-3 sm:top-4 sm:right-4 z-[400] bg-[#1A1A1A]/90 backdrop-blur-md border border-[#FDD835]/30 px-3 py-1.5 rounded-xl shadow-xl flex items-center gap-2 pointer-events-none transition-all duration-200 ${
-          isObscured ? 'opacity-0 -translate-y-2 pointer-events-none invisible' : 'opacity-100 translate-y-0 visible'
-        }`}>
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FDD835] opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-[#FDD835]"></span>
-          </span>
-          <span className="text-[10px] font-black uppercase tracking-wider text-[#FDD835] flex items-center gap-1.5">
-            <Route className="w-3.5 h-3.5 text-[#FDD835]" />
-            {lang === 'hu' ? 'Gyalogos Utcanavigáció' : 'Street Walking Navigation'}
-          </span>
+      {/* Subtle Edge Vignette so map integrates seamlessly into dark app frame */}
+      <div
+        className="absolute inset-0 pointer-events-none z-[200]"
+        style={{
+          background:
+            'radial-gradient(circle at center, transparent 62%, rgba(10, 10, 10, 0.38) 100%)',
+        }}
+      />
+
+      {/* Top-Left Modern Map Control Dock */}
+      <div
+        className={`absolute top-3 left-3 sm:top-4 sm:left-4 z-[400] flex flex-col gap-2 transition-all duration-200 ${
+          isObscured
+            ? 'opacity-0 -translate-y-2 pointer-events-none invisible'
+            : 'opacity-100 translate-y-0 visible'
+        }`}
+      >
+        {onQuickGenerate && (
+          <button
+            type="button"
+            onClick={onQuickGenerate}
+            className="flex items-center justify-center sm:justify-start gap-2 px-3 sm:px-3.5 py-2.5 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] font-bold rounded-xl shadow-[0_8px_24px_-4px_rgba(253,216,53,0.35)] text-xs tracking-tight transition-all active:scale-95 cursor-pointer min-h-[44px] min-w-[44px] whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            title={
+              tourStops.length > 0
+                ? lang === 'hu'
+                  ? 'Új túra generálása'
+                  : 'Generate new tour'
+                : lang === 'hu'
+                  ? 'Túra generálás'
+                  : 'Generate tour'
+            }
+            aria-label="Generate new tour"
+          >
+            <Route className="w-4 h-4 text-[#111111] stroke-[2.25] shrink-0" />
+            <span className="hidden sm:inline">
+              {tourStops.length > 0
+                ? lang === 'hu'
+                  ? 'Új túra'
+                  : 'New Tour'
+                : lang === 'hu'
+                  ? 'Túra generálás'
+                  : 'Generate'}
+            </span>
+          </button>
+        )}
+
+        {/* Unified Glassmorphic Map Utility Rail */}
+        <div className="bg-[#111111]/88 backdrop-blur-xl border border-white/12 rounded-2xl shadow-2xl overflow-hidden divide-y divide-white/10">
+          <button
+            type="button"
+            onClick={handleZoomIn}
+            className="w-full flex items-center justify-center sm:justify-start gap-2.5 px-3 py-2.5 text-white/80 hover:text-[#FDD835] hover:bg-white/[0.06] transition-colors cursor-pointer min-h-[42px] min-w-[42px] text-xs font-medium whitespace-nowrap focus-visible:outline-none focus-visible:bg-white/10"
+            title={t.zoomIn}
+            aria-label={t.zoomIn}
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">{t.zoomIn}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleZoomOut}
+            className="w-full flex items-center justify-center sm:justify-start gap-2.5 px-3 py-2.5 text-white/80 hover:text-[#FDD835] hover:bg-white/[0.06] transition-colors cursor-pointer min-h-[42px] min-w-[42px] text-xs font-medium whitespace-nowrap focus-visible:outline-none focus-visible:bg-white/10"
+            title={t.zoomOut}
+            aria-label={t.zoomOut}
+          >
+            <Minus className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">{t.zoomOut}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onLocateUser}
+            className="w-full flex items-center justify-center sm:justify-start gap-2.5 px-3 py-2.5 text-white/80 hover:text-[#FDD835] hover:bg-white/[0.06] transition-colors cursor-pointer min-h-[42px] min-w-[42px] text-xs font-medium whitespace-nowrap focus-visible:outline-none focus-visible:bg-white/10"
+            title={t.locateMe}
+            aria-label={t.locateMe}
+          >
+            <Crosshair className="w-4 h-4 text-[#FDD835] shrink-0" />
+            <span className="hidden sm:inline">{t.locateMe}</span>
+          </button>
+
+          {tourStops.length > 0 && (
+            <button
+              type="button"
+              onClick={handleFitTour}
+              className="w-full flex items-center justify-center sm:justify-start gap-2.5 px-3 py-2.5 text-white/80 hover:text-[#FDD835] hover:bg-white/[0.06] transition-colors cursor-pointer min-h-[42px] min-w-[42px] text-xs font-medium whitespace-nowrap focus-visible:outline-none focus-visible:bg-white/10"
+              title={t.fitTour}
+              aria-label={t.fitTour}
+            >
+              <Maximize2 className="w-4 h-4 text-[#FDD835] shrink-0" />
+              <span className="hidden sm:inline">{t.fitTour}</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={handleCenterBudapest}
+            className="w-full flex items-center justify-center sm:justify-start gap-2.5 px-3 py-2.5 text-white/80 hover:text-[#FDD835] hover:bg-white/[0.06] transition-colors cursor-pointer min-h-[42px] min-w-[42px] text-xs font-medium whitespace-nowrap focus-visible:outline-none focus-visible:bg-white/10"
+            title={t.centerBudapest}
+            aria-label={t.centerBudapest}
+          >
+            <Navigation className="w-4 h-4 text-[#FDD835] shrink-0" />
+            <span className="hidden sm:inline">{t.centerBudapest}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Top-Right Layer Filter Segmented Control + Live Route Loading Indicator */}
+      {tourStops.length > 0 && (
+        <div
+          className={`absolute top-3 right-3 sm:top-4 sm:right-4 z-[400] flex items-center gap-2 transition-all duration-200 ${
+            isObscured
+              ? 'opacity-0 -translate-y-2 pointer-events-none invisible'
+              : 'opacity-100 translate-y-0 visible'
+          }`}
+        >
+          {isRoutingLoading && (
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-2 bg-[#111111]/88 backdrop-blur-xl border border-white/12 rounded-xl text-xs font-medium text-white/75 shadow-xl">
+              <Loader2 className="w-3.5 h-3.5 text-[#FDD835] animate-spin" />
+              <span className="whitespace-nowrap">{t.routingCalculating}</span>
+            </div>
+          )}
+
+          <div
+            className="flex items-center gap-1 p-1 bg-[#111111]/88 backdrop-blur-xl border border-white/12 rounded-xl shadow-2xl"
+            role="group"
+            aria-label="Map layer filter"
+          >
+            <button
+              type="button"
+              onClick={() => setShowAllBars(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer min-h-[34px] whitespace-nowrap ${
+                showAllBars
+                  ? 'bg-[#FDD835] text-[#111111] shadow-sm'
+                  : 'text-white/65 hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5 shrink-0" />
+              <span>{t.showAllSpots}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAllBars(false)}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer min-h-[34px] whitespace-nowrap ${
+                !showAllBars
+                  ? 'bg-[#FDD835] text-[#111111] shadow-sm'
+                  : 'text-white/65 hover:text-white'
+              }`}
+            >
+              {t.tourSpotsOnly}
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Floating Map Action Controls */}
-      <div className={`absolute top-3 left-3 sm:top-4 sm:left-4 z-[400] flex flex-col gap-1.5 sm:gap-2 transition-all duration-200 ${
-        isObscured ? 'opacity-0 -translate-y-2 pointer-events-none invisible' : 'opacity-100 translate-y-0 visible'
-      }`}>
-        {onQuickGenerate && (
-          <button
-            onClick={onQuickGenerate}
-            className="flex items-center justify-center sm:justify-start gap-2 px-3 py-2.5 sm:px-3.5 sm:py-2 bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] font-black border border-[#FDD835] rounded-xl shadow-2xl text-xs uppercase tracking-wider transition-all active:scale-95 cursor-pointer min-h-[42px] min-w-[42px]"
-            title={tourStops.length > 0 ? (lang === 'hu' ? 'Új túra generálása' : 'Generate new tour') : (lang === 'hu' ? 'Túra generálás' : 'Generate tour')}
-            aria-label="Generate new tour"
-          >
-            <Route className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#111111] stroke-[2.5]" />
-            <span className="hidden sm:inline">{tourStops.length > 0 ? (lang === 'hu' ? 'Új túra' : 'New Tour') : (lang === 'hu' ? 'Túra generálás' : 'Generate')}</span>
-          </button>
-        )}
-
-        <button
-          onClick={onLocateUser}
-          className="flex items-center justify-center sm:justify-start gap-2 px-3 py-2.5 sm:px-3.5 sm:py-2 bg-[#1A1A1A]/90 hover:bg-[#222222] text-[#EEEEEE] hover:text-[#FDD835] border border-white/10 rounded-xl shadow-2xl backdrop-blur-md text-xs font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer min-h-[42px] min-w-[42px]"
-          title={t.locateMe}
-          aria-label={t.locateMe}
-        >
-          <Crosshair className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#FDD835]" />
-          <span className="hidden sm:inline">{t.locateMe}</span>
-        </button>
-
-        {tourStops.length > 0 && (
-          <button
-            onClick={handleFitTour}
-            className="flex items-center justify-center sm:justify-start gap-2 px-3 py-2.5 sm:px-3.5 sm:py-2 bg-[#1A1A1A]/90 hover:bg-[#222222] text-[#EEEEEE] hover:text-[#FDD835] border border-white/10 rounded-xl shadow-2xl backdrop-blur-md text-xs font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer min-h-[42px] min-w-[42px]"
-            title={t.fitTour}
-            aria-label={t.fitTour}
-          >
-            <Maximize2 className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#FDD835]" />
-            <span className="hidden sm:inline">{t.fitTour}</span>
-          </button>
-        )}
-
-        <button
-          onClick={handleCenterBudapest}
-          className="flex items-center justify-center sm:justify-start gap-2 px-3 py-2.5 sm:px-3.5 sm:py-2 bg-[#1A1A1A]/90 hover:bg-[#222222] text-[#EEEEEE] hover:text-[#FDD835] border border-white/10 rounded-xl shadow-2xl backdrop-blur-md text-xs font-bold uppercase tracking-wider transition-all active:scale-95 cursor-pointer min-h-[42px] min-w-[42px]"
-          title={t.centerBudapest}
-          aria-label={t.centerBudapest}
-        >
-          <Navigation className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-[#FDD835]" />
-          <span className="hidden sm:inline">{t.centerBudapest}</span>
-        </button>
-      </div>
-
-      {/* Floating HUD Tour Summary Badge (from Elegant Dark design) */}
+      {/* Bottom-Left Desktop Route Telemetry Bar */}
       {tourStops.length > 0 && (
-        <div className="hidden md:flex absolute bottom-8 left-8 z-[400] bg-[#1A1A1A]/90 backdrop-blur-md border border-[#FDD835]/30 p-4 rounded-xl items-center gap-6 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-[#FDD835] font-bold">
-              {t.hudTourTitle}
-            </span>
-            <span className="text-base font-black text-white tracking-tight">
-              {t.hudTourSubtitle}
-            </span>
-          </div>
-
-          <div className="h-8 w-[1px] bg-white/10" />
-
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold">
-              {t.hudStops}
-            </span>
-            <span className="text-base font-bold text-white">
+        <div
+          className={`hidden md:flex absolute bottom-6 left-4 z-[400] bg-[#111111]/90 backdrop-blur-xl border border-white/12 px-4 py-2.5 rounded-2xl items-center gap-4 shadow-2xl transition-all duration-200 ${
+            isObscured
+              ? 'opacity-0 translate-y-2 pointer-events-none invisible'
+              : 'opacity-100 translate-y-0 visible'
+          }`}
+        >
+          <div className="flex items-center gap-2 text-xs text-white/85 font-medium tabular-nums whitespace-nowrap">
+            <span className="font-bold text-[#FDD835]">
               {tourStops.length} {t.hudBars}
+            </span>
+            <span className="text-white/25" aria-hidden="true">
+              ·
+            </span>
+            <span>{formattedDistance}</span>
+            <span className="text-white/25" aria-hidden="true">
+              ·
+            </span>
+            <span className="text-white/65">
+              ~{totalWalkMinutes} {t.mins}
             </span>
           </div>
 
           {onQuickGenerate && (
             <>
-              <div className="h-8 w-[1px] bg-white/10" />
+              <div className="h-4 w-px bg-white/12" />
               <button
+                type="button"
                 onClick={onQuickGenerate}
-                className="bg-[#FDD835] text-[#111111] px-5 py-2 rounded-lg font-black text-xs uppercase tracking-widest hover:scale-105 transition-transform active:scale-95 cursor-pointer shadow-md"
+                className="bg-[#FDD835] hover:bg-[#FDD835]/90 text-[#111111] px-3.5 py-1.5 rounded-xl font-bold text-xs transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 {t.hudReGenerate}
               </button>

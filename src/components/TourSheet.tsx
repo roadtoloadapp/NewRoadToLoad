@@ -15,7 +15,8 @@ import {
   Maximize2,
   ChevronRight,
   Trophy,
-  Check
+  Check,
+  Trash2
 } from 'lucide-react';
 import { TourStop, Language, Bar } from '../types';
 import { TRANSLATIONS } from '../data/translations';
@@ -41,6 +42,7 @@ interface TourSheetProps {
   onReRollChallenge: (stopIndex: number) => void;
   onMoveStop: (fromIndex: number, toIndex: number) => void;
   onQuickGenerate: () => void;
+  onClearTour?: () => void;
   onOpenPlanner: () => void;
   isMobileView?: boolean;
 }
@@ -55,6 +57,7 @@ export const TourSheet: React.FC<TourSheetProps> = ({
   onReRollChallenge,
   onMoveStop,
   onQuickGenerate,
+  onClearTour,
   onOpenPlanner,
   isMobileView = false,
 }) => {
@@ -165,6 +168,16 @@ export const TourSheet: React.FC<TourSheetProps> = ({
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
+            {onClearTour && (
+              <button
+                onClick={onClearTour}
+                className="p-2 bg-white/5 hover:bg-red-500/15 text-white/60 hover:text-red-400 border border-white/5 rounded-xl transition-colors text-xs font-bold cursor-pointer min-h-[38px] min-w-[38px] flex items-center justify-center"
+                title={lang === 'hu' ? 'Túra törlése' : 'Clear tour'}
+                aria-label={lang === 'hu' ? 'Túra törlése' : 'Clear tour'}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
             {!isMobileView && (
               <button
                 onClick={() => setIsMinimized(!isMinimized)}

@@ -118,7 +118,13 @@ export const TRANSLATIONS = {
     prevStop: 'Előző',
     viewFullTour: 'Teljes útiterv megnyitása',
     activeStop: 'Aktuális állomás',
-    openInMaps: 'Navigáció'
+    openInMaps: 'Navigáció',
+    zoomIn: 'Nagyítás',
+    zoomOut: 'Kicsinyítés',
+    showAllSpots: 'Minden hely',
+    tourSpotsOnly: 'Csak a túra',
+    routingCalculating: 'Útvonal tervezése...',
+    inTourLabel: 'Túrában'
   },
   en: {
     appTitle: 'RoadToLoad',
@@ -239,6 +245,12 @@ export const TRANSLATIONS = {
     prevStop: 'Prev',
     viewFullTour: 'View Full Itinerary',
     activeStop: 'Current Stop',
-    openInMaps: 'Navigate'
+    openInMaps: 'Navigate',
+    zoomIn: 'Zoom in',
+    zoomOut: 'Zoom out',
+    showAllSpots: 'All spots',
+    tourSpotsOnly: 'Tour only',
+    routingCalculating: 'Calculating route...',
+    inTourLabel: 'In tour'
   }
 };
